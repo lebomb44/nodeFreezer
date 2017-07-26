@@ -30,7 +30,6 @@ void greenON (int arg_cnt, char **args) { digitalWrite(GREEN_LIGHT_PIN , HIGH); 
 void greenOFF (int arg_cnt, char **args) { digitalWrite(GREEN_LIGHT_PIN , LOW); Serial.println("Green light OFF" ); }
 
 /* NRF24 */
-
 void nrf24EnablePrint(int arg_cnt, char **args) { nrf24_printIsEnabled = true; Serial.println("NRF24 print enabled"); }
 void nrf24DisablePrint(int arg_cnt, char **args) { nrf24_printIsEnabled = false; Serial.println("NRF24 print disabled"); }
 
@@ -41,17 +40,22 @@ void nrf24SendTempTo(uint8_t dst) {
   float tempF = tempSensors.getTempCByIndex(0);
   //Serial.println(tempF);
   int16_t tempI = (10.0 * tempF);
+  //Serial.println(tempI);
   LbMsg msg(sizeof(int16_t));
   msg.setSrc(ID_BOURDILOT_FRIDGE);
   msg.setDst(dst);
   msg.setCmd(ID_BOURDILOT_FRIDGE_TEMP_TM);
   msg.getData()[0] = 0x00FF & (tempI>>8);
-  msg.getData()[1] = 0x00FF & (tempI>>8);
+  msg.getData()[1] = 0x00FF & (tempI);
   msg.compute();
+  if(true == nrf24_printIsEnabled) { Serial.print("Sending Temperature on NRF24 to dst="); Serial.print(dst); Serial.print("...");}
   nrf24.stopListening();
-  nrf24.write(msg.getFrame(), msg.getFrameLen());
+  bool writeStatus = nrf24.write(msg.getFrame(), msg.getFrameLen());
   nrf24.startListening();
-  if(true == nrf24_printIsEnabled) { Serial.print("Temperature send on NRF24 to dst="); Serial.println(dst); }
+  if(true == nrf24_printIsEnabled) {
+    if(true == writeStatus) { Serial.println("OK"); } else { Serial.println("ERROR"); }
+    Serial.print("Temperature message sent: "); msg.print(); Serial.println();
+  }
   digitalWrite(GREEN_LIGHT_PIN, LOW);
 }
 
@@ -66,41 +70,45 @@ void setup() {
   digitalWrite(GREEN_LIGHT_PIN, HIGH);
 
   Serial.begin(115200);
+  Serial.println("nodeFreezer Starting...");
 
   tempSensors.begin();
 
   Serial.print("NRF24 begin...");
   if(true == nrf24.begin()) { Serial.println("OK"); } else { Serial.println("ERROR"); }
-  Serial.print("NRF24 begin...");
-  //nrf24.setPALevel(RF24_PA_LOW);
+  nrf24.setPALevel(RF24_PA_LOW);
   Serial.println("NRF24 PA level set");
-  nrf24.setAddressWidth(4);
+  //nrf24.setAddressWidth(4);
   Serial.println("NRF24 address width set");
-  uint32_t nrf24Adr = ID_BOURDILOT_FRIDGE;
-  nrf24.openReadingPipe(1, &nrf24Adr);
+  uint8_t nrf24AdrR[6] = "FRIDG";
+  nrf24.openReadingPipe(1, nrf24AdrR);
   Serial.println("NRF24 reading pipe opened");
-  nrf24Adr = ID_LOST;
-  nrf24.openWritingPipe(&nrf24Adr);
+  uint8_t nrf24AdrW[6] = "LOST+";
+  nrf24.openWritingPipe(nrf24AdrW);
   Serial.println("NRF24 writing pipe opened");
   nrf24.startListening();
   Serial.println("NRF24 listening started");
-  
+
   cmdInit();
 
+/*
   cmdAdd("redON"   , "Red Light ON"   , redON   );  cmdAdd("redOFF"   , "Red Light OFF"   , redOFF   );
   cmdAdd("orangeON", "Orange Light ON", orangeON);  cmdAdd("orangeOFF", "Orange Light OFF", orangeOFF);
   cmdAdd("greenON" , "Green Light ON" , greenON );  cmdAdd("greenOFF" , "Green Light OFF" , greenOFF );
-  cmdAdd("nrf24SendTempToLOST", "Send temperature on NRF24 link", nrf24SendTempToLOST);
+  cmdAdd("nrf24SendTempLOST", "Send temperature on NRF24 link", nrf24SendTempToLOST);
   cmdAdd("nrf24EnablePrint", "Enable print in NRF24 lib", nrf24EnablePrint);
   cmdAdd("nrf24DisbalePrint", "Disable print in NRF24 lib", nrf24DisablePrint);
   cmdAdd("help", "List commands", cmdList);
+*/
 
-  Serial.println("nodeFreeze Init OK");
+  Serial.println("nodeFreeze Init done");
 
   delay(1000);
   digitalWrite(RED_LIGHT_PIN, LOW);
   digitalWrite(ORANGE_LIGHT_PIN, LOW);
   digitalWrite(GREEN_LIGHT_PIN, LOW);
+  nrf24_printIsEnabled=true;
+
 }
 
 void loop() {
