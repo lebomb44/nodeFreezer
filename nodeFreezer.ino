@@ -149,7 +149,7 @@ void loop() {
     }
   }
 
-  if(10000 < nrf24SendTempCycle) { nrf24SendTempTo(ID_LOST); nrf24SendTempCycle = 0; }
+  if(1000 < nrf24SendTempCycle) { nrf24SendTempTo(ID_LOST); nrf24SendTempCycle = 0; }
   nrf24SendTempCycle++;
 
   cmdPoll();
