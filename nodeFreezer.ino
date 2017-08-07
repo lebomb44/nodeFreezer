@@ -5,6 +5,10 @@
 #include <LbMsg.h>
 #include <ID.h>
 
+/* *****************************
+ *  Pin allocation
+ * *****************************
+ */
 #define RED_LIGHT_PIN 5    /* ERROR on NRF24 msg */
 #define ORANGE_LIGHT_PIN 6 /* NRF24 msg received for nodeFreezer */
 #define GREEN_LIGHT_PIN 7  /* Send temperature on NRF24 */
@@ -15,12 +19,26 @@
 #define NRF24_MISO_pin 12
 #define NRF24_SCK_pin  13
 
+/* *****************************
+ *  Global variables
+ * *****************************
+ */
 OneWire oneWire(2);
 DallasTemperature tempSensors(&oneWire);
 RF24 nrf24(NRF24_CE_pin, NRF24_CSN_pin);
 uint16_t nrf24SendTempCycle = 0;
-bool nrf24_printIsEnabled = true;
 
+/* *****************************
+ *  Debug Macros
+ * *****************************
+ */
+bool nrf24_printIsEnabled = true;
+#define NRF24_PRINT(m) if(true == nrf24_printIsEnabled) { m }
+
+/* *****************************
+ *  Command lines funstions
+ * *****************************
+ */
 /* Lights */
 void redON   (int arg_cnt, char **args) { digitalWrite(RED_LIGHT_PIN   , HIGH); Serial.println("Red light ON"    ); }
 void redOFF   (int arg_cnt, char **args) { digitalWrite(RED_LIGHT_PIN   , LOW); Serial.println("Red light OFF"   ); }
@@ -48,20 +66,24 @@ void nrf24SendTempTo(uint8_t dst) {
   msg.getData()[0] = 0x00FF & (tempI>>8);
   msg.getData()[1] = 0x00FF & (tempI);
   msg.compute();
-  if(true == nrf24_printIsEnabled) { Serial.print("Sending Temperature on NRF24 to dst="); Serial.print(dst); Serial.print("...");}
+  NRF24_PRINT( Serial.print("Sending Temperature on NRF24 to dst="); Serial.print(dst); Serial.print("..."); )
   nrf24.stopListening();
   bool writeStatus = nrf24.write(msg.getFrame(), msg.getFrameLen());
   nrf24.startListening();
-  if(true == nrf24_printIsEnabled) {
+  NRF24_PRINT(
     if(true == writeStatus) { Serial.println("OK"); } else { Serial.println("ERROR"); }
     Serial.print("Temperature message sent: "); msg.print(); Serial.println();
-  }
+  )
   digitalWrite(GREEN_LIGHT_PIN, LOW);
 }
 
 void nrf24SendTempToLOST(int arg_cnt, char **args) { nrf24SendTempTo(ID_LOST); }
 
 void setup() {
+/* ****************************
+ *  Pin configuration
+ * ****************************
+ */
   pinMode(RED_LIGHT_PIN, OUTPUT);
   pinMode(ORANGE_LIGHT_PIN, OUTPUT);
   pinMode(GREEN_LIGHT_PIN, OUTPUT);
@@ -76,14 +98,20 @@ void setup() {
 
   Serial.print("NRF24 begin...");
   if(true == nrf24.begin()) { Serial.println("OK"); } else { Serial.println("ERROR"); }
-  nrf24.setPALevel(RF24_PA_LOW);
+  /* Set Power Amplifier (PA) level to one of four levels: */
+  /* RF24_PA_MIN, RF24_PA_LOW, RF24_PA_HIGH and RF24_PA_MAX */
+  /* The power levels correspond to the following output levels respectively: */
+  /* NRF24L01: -18dBm, -12dBm,-6dBM, and 0dBm */
+  nrf24.setPALevel(RF24_PA_MAX);
   Serial.println("NRF24 PA level set");
   //nrf24.setAddressWidth(4);
   Serial.println("NRF24 address width set");
-  uint8_t nrf24AdrR[6] = "FRIDG";
+  /* Open pipe for Master to Slave messages */
+  uint8_t nrf24AdrR[6] = "LBM2S";
   nrf24.openReadingPipe(1, nrf24AdrR);
   Serial.println("NRF24 reading pipe opened");
-  uint8_t nrf24AdrW[6] = "LOST+";
+  /* Open pipe for Slave to Master messages */
+  uint8_t nrf24AdrW[6] = "LBS2M";
   nrf24.openWritingPipe(nrf24AdrW);
   Serial.println("NRF24 writing pipe opened");
   nrf24.startListening();
@@ -107,26 +135,32 @@ void setup() {
   digitalWrite(RED_LIGHT_PIN, LOW);
   digitalWrite(ORANGE_LIGHT_PIN, LOW);
   digitalWrite(GREEN_LIGHT_PIN, LOW);
-  nrf24_printIsEnabled=true;
-
 }
 
 void loop() {
-  delay(1);
-
   /* Read incoming messages */
   if(true == nrf24.available()) {
     LbMsg msg(32-4-1); /* 32 bytes max in NRF24 static payload */
-    nrf24.read(msg.getFrame(), 4);
-    nrf24.read(msg.getData(), min(msg.getDataLen()+1, 32-4));
-    if(true == nrf24_printIsEnabled) { Serial.print("NRF24 rx: "); msg.print(); }
+    nrf24.read(msg.getFrame(), 32);
+    NRF24_PRINT( Serial.print("NRF24 rx: "); msg.print(); )
     if(true == msg.check()) {
-      if(true == nrf24_printIsEnabled) { Serial.println(": OK"); }
+      NRF24_PRINT( Serial.println(": OK"); )
       /* Actions to do */
       if(ID_BOURDILOT_FRIDGE == msg.getDst()) {
         digitalWrite(ORANGE_LIGHT_PIN, HIGH);
         if(ID_BOURDILOT_FRIDGE_NETWORK_TC == msg.getCmd()) {
           Serial.println("Network TC");
+          /* Build a TM to send back containing the status of the command execution */
+          LbMsg tm(0); tm.setSrc(msg.getDst()); tm.setDst(msg.getSrc()); tm.setCmd(ID_BOURDILOT_FRIDGE_NETWORK_TM);
+          /* Compute the CRC and send the message */
+          tm.compute();
+          nrf24.stopListening();
+          bool writeStatus = nrf24.write(tm.getFrame(), tm.getFrameLen());
+          nrf24.startListening();
+          NRF24_PRINT(
+            if(true == writeStatus) { Serial.println("OK"); } else { Serial.println("ERROR"); }
+            Serial.print("Temperature message sent: "); tm.print(); Serial.println();
+          )
         }
         else if(ID_BOURDILOT_FRIDGE_TEMP_TC == msg.getCmd()) {
           nrf24SendTempTo(msg.getSrc());
@@ -139,19 +173,26 @@ void loop() {
         digitalWrite(ORANGE_LIGHT_PIN, LOW);
       }
       else {
-        if(true == nrf24_printIsEnabled) { Serial.print("NRF24 msg not for me dst="); Serial.println(msg.getDst()); }
+        NRF24_PRINT( Serial.print("NRF24 msg not for me dst="); Serial.println(msg.getDst()); )
       }
     }
     else {
       digitalWrite(RED_LIGHT_PIN, HIGH);
-      if(true == nrf24_printIsEnabled) { Serial.println(": Bad CKS !"); }
+      NRF24_PRINT( Serial.println(": Bad CKS !"); )
       digitalWrite(RED_LIGHT_PIN, LOW);
     }
   }
 
-  if(1000 < nrf24SendTempCycle) { nrf24SendTempTo(ID_LOST); nrf24SendTempCycle = 0; }
+  /* ****************************
+   *  Cyclic tasks
+   * ****************************
+   */
+  if(30000 < nrf24SendTempCycle) { nrf24SendTempTo(ID_LOST); nrf24SendTempCycle = 0; }
   nrf24SendTempCycle++;
 
+  /* Poll for new command line */
   cmdPoll();
+  /* Wait a minimum for cyclic task */
+  delay(1);
 }
 
