@@ -60,9 +60,9 @@ void nrf24SendTempTo(uint8_t dst) {
   int16_t tempI = (10.0 * tempF);
   //Serial.println(tempI);
   LbMsg msg(sizeof(int16_t));
-  msg.setSrc(ID_BOURDILOT_FRIDGE);
+  msg.setSrc(ID_BOURDILOT_FREEZER);
   msg.setDst(dst);
-  msg.setCmd(ID_BOURDILOT_FRIDGE_TEMP_TM);
+  msg.setCmd(ID_BOURDILOT_FREEZER_TEMP_TM);
   msg.getData()[0] = 0x00FF & (tempI>>8);
   msg.getData()[1] = 0x00FF & (tempI);
   msg.compute();
@@ -77,7 +77,7 @@ void nrf24SendTempTo(uint8_t dst) {
   digitalWrite(GREEN_LIGHT_PIN, LOW);
 }
 
-void nrf24SendTempToLOST(int arg_cnt, char **args) { nrf24SendTempTo(ID_LOST); }
+void nrf24SendTempToLOST(int arg_cnt, char **args) { nrf24SendTempTo(ID_LOST_MASTER); }
 
 void setup() {
 /* ****************************
@@ -146,12 +146,12 @@ void loop() {
     if(true == msg.check()) {
       NRF24_PRINT( Serial.println(": OK"); )
       /* Actions to do */
-      if(ID_BOURDILOT_FRIDGE == msg.getDst()) {
+      if(ID_BOURDILOT_FREEZER == msg.getDst()) {
         digitalWrite(ORANGE_LIGHT_PIN, HIGH);
-        if(ID_BOURDILOT_FRIDGE_NETWORK_TC == msg.getCmd()) {
+        if(ID_BOURDILOT_FREEZER_NETWORK_TC == msg.getCmd()) {
           Serial.println("Network TC");
           /* Build a TM to send back containing the status of the command execution */
-          LbMsg tm(0); tm.setSrc(msg.getDst()); tm.setDst(msg.getSrc()); tm.setCmd(ID_BOURDILOT_FRIDGE_NETWORK_TM);
+          LbMsg tm(0); tm.setSrc(msg.getDst()); tm.setDst(msg.getSrc()); tm.setCmd(ID_BOURDILOT_FREEZER_NETWORK_TM);
           /* Compute the CRC and send the message */
           tm.compute();
           nrf24.stopListening();
@@ -162,7 +162,7 @@ void loop() {
             Serial.print("Temperature message sent: "); tm.print(); Serial.println();
           )
         }
-        else if(ID_BOURDILOT_FRIDGE_TEMP_TC == msg.getCmd()) {
+        else if(ID_BOURDILOT_FREEZER_TEMP_TC == msg.getCmd()) {
           nrf24SendTempTo(msg.getSrc());
         }
         else {
@@ -187,7 +187,7 @@ void loop() {
    *  Cyclic tasks
    * ****************************
    */
-  if(30000 < nrf24SendTempCycle) { nrf24SendTempTo(ID_LOST); nrf24SendTempCycle = 0; }
+  if(30000 < nrf24SendTempCycle) { nrf24SendTempTo(ID_LOST_MASTER); nrf24SendTempCycle = 0; }
   nrf24SendTempCycle++;
 
   /* Poll for new command line */
