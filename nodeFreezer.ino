@@ -60,7 +60,7 @@ void nrf24SendTempTo(uint8_t dst) {
   int16_t tempI = (10.0 * tempF);
   //Serial.println(tempI);
   LbMsg msg(sizeof(int16_t));
-  msg.setSrc(ID_BOURDILOT_FREEZER);
+  msg.setSrc(ID_BOURDILOT_FREEZER_SLAVE);
   msg.setDst(dst);
   msg.setCmd(ID_BOURDILOT_FREEZER_TEMP_TM);
   msg.getData()[0] = 0x00FF & (tempI>>8);
@@ -146,7 +146,7 @@ void loop() {
     if(true == msg.check()) {
       NRF24_PRINT( Serial.println(": OK"); )
       /* Actions to do */
-      if(ID_BOURDILOT_FREEZER == msg.getDst()) {
+      if(ID_BOURDILOT_FREEZER_SLAVE == msg.getDst()) {
         digitalWrite(ORANGE_LIGHT_PIN, HIGH);
         if(ID_BOURDILOT_FREEZER_NETWORK_TC == msg.getCmd()) {
           Serial.println("Network TC");
