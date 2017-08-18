@@ -79,6 +79,26 @@ void nrf24SendTempTo(uint8_t dst) {
 
 void nrf24SendTempToLOST(int arg_cnt, char **args) { nrf24SendTempTo(ID_LOST_MASTER); }
 
+void nrf24SendNetworkTo(uint8_t dst) {
+  /* Send temperature to central system */
+  digitalWrite(GREEN_LIGHT_PIN, HIGH);
+  /* Build a TM to send back containing the status of the command execution */
+  LbMsg tm(0); tm.setSrc(ID_BOURDILOT_FREEZER_SLAVE); tm.setDst(dst); tm.setCmd(ID_BOURDILOT_FREEZER_NETWORK_TM);
+  /* Compute the CRC and send the message */
+  tm.compute();
+  NRF24_PRINT( Serial.print("Sending Network on NRF24 to dst="); Serial.print(dst); Serial.print("..."); )
+  nrf24.stopListening();
+  bool writeStatus = nrf24.write(tm.getFrame(), tm.getFrameLen());
+  nrf24.startListening();
+  NRF24_PRINT(
+    if(true == writeStatus) { Serial.println("OK"); } else { Serial.println("ERROR"); }
+    Serial.print("Network message sent: "); tm.print(); Serial.println();
+  )
+  digitalWrite(GREEN_LIGHT_PIN, LOW);
+}
+
+void nrf24SendNetworkToLOST(int arg_cnt, char **args) { nrf24SendNetworkTo(ID_LOST_MASTER); }
+
 void setup() {
 /* ****************************
  *  Pin configuration
@@ -124,6 +144,7 @@ void setup() {
   cmdAdd("orangeON", "Orange Light ON", orangeON);  cmdAdd("orangeOFF", "Orange Light OFF", orangeOFF);
   cmdAdd("greenON" , "Green Light ON" , greenON );  cmdAdd("greenOFF" , "Green Light OFF" , greenOFF );
   cmdAdd("nrf24SendTempLOST", "Send temperature on NRF24 link", nrf24SendTempToLOST);
+  cmdAdd("nrf24SendNetworkLOST", "Send network on NRF24 link", nrf24SendNetworkToLOST);
   cmdAdd("nrf24EnablePrint", "Enable print in NRF24 lib", nrf24EnablePrint);
   cmdAdd("nrf24DisbalePrint", "Disable print in NRF24 lib", nrf24DisablePrint);
   cmdAdd("help", "List commands", cmdList);
@@ -149,18 +170,7 @@ void loop() {
       if(ID_BOURDILOT_FREEZER_SLAVE == msg.getDst()) {
         digitalWrite(ORANGE_LIGHT_PIN, HIGH);
         if(ID_BOURDILOT_FREEZER_NETWORK_TC == msg.getCmd()) {
-          Serial.println("Network TC");
-          /* Build a TM to send back containing the status of the command execution */
-          LbMsg tm(0); tm.setSrc(msg.getDst()); tm.setDst(msg.getSrc()); tm.setCmd(ID_BOURDILOT_FREEZER_NETWORK_TM);
-          /* Compute the CRC and send the message */
-          tm.compute();
-          nrf24.stopListening();
-          bool writeStatus = nrf24.write(tm.getFrame(), tm.getFrameLen());
-          nrf24.startListening();
-          NRF24_PRINT(
-            if(true == writeStatus) { Serial.println("OK"); } else { Serial.println("ERROR"); }
-            Serial.print("Temperature message sent: "); tm.print(); Serial.println();
-          )
+          nrf24SendNetworkTo(msg.getSrc());
         }
         else if(ID_BOURDILOT_FREEZER_TEMP_TC == msg.getCmd()) {
           nrf24SendTempTo(msg.getSrc());
@@ -187,7 +197,7 @@ void loop() {
    *  Cyclic tasks
    * ****************************
    */
-  if(30000 < nrf24SendTempCycle) { nrf24SendTempTo(ID_LOST_MASTER); nrf24SendTempCycle = 0; }
+  if(20000 < nrf24SendTempCycle) { nrf24SendNetworkTo(ID_LOST_MASTER); nrf24SendTempTo(ID_LOST_MASTER); nrf24SendTempCycle = 0; }
   nrf24SendTempCycle++;
 
   /* Poll for new command line */
