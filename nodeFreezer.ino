@@ -5,6 +5,10 @@
 #include <LbMsg.h>
 #include <ID.h>
 
+#define ARDULIBS_VERSION "1.0.0"
+
+#define NODEFREEZER_VERSION "1.0.0"
+
 /* *****************************
  *  Pin allocation
  * *****************************
