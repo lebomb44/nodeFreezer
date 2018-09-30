@@ -197,7 +197,13 @@ void loop() {
    *  Cyclic tasks
    * ****************************
    */
-  if(20000 < nrf24SendTempCycle) { nrf24SendNetworkTo(ID_LOST_MASTER); nrf24SendTempTo(ID_LOST_MASTER); nrf24SendTempCycle = 0; }
+  if(20000 < nrf24SendTempCycle) {
+    for(uint8_t i=0; i<10; i++) {
+      nrf24SendNetworkTo(ID_LOST_MASTER);
+      nrf24SendTempTo(ID_LOST_MASTER);
+      nrf24SendTempCycle = 0;
+    }
+  }
   nrf24SendTempCycle++;
 
   /* Poll for new command line */
