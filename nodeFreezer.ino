@@ -124,6 +124,10 @@ void setup() {
   /* NRF24L01: -18dBm, -12dBm,-6dBM, and 0dBm */
   nrf24.setPALevel(RF24_PA_MAX);
   Serial.println("NRF24 PA level set");
+  nrf24.setDataRate(RF24_250KBPS);
+  Serial.println("NRF24 data rate set");
+  nrf24.setRetries(15, 15);
+  Serial.println("NRF24 retries set");
   //nrf24.setAddressWidth(4);
   Serial.println("NRF24 address width set");
   /* Open pipe for Master to Slave messages */
@@ -211,4 +215,3 @@ void loop() {
   /* Wait a minimum for cyclic task */
   delay(1);
 }
-
